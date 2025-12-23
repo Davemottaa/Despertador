@@ -3,19 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Alarme Web Brasileiro</title>
+    <title>Alarme Brasília Web</title>
     <style>
-        /* Variáveis de Cores (Temas) */
         :root {
-            /* Padrão DARK (Mais escuro, quase preto absoluto) */
             --bg-color: #050505;
             --card-bg: #141414;
             --text-color: #ffffff;
-            --primary-color: #3b82f6; /* Azul vibrante */
+            --primary-color: #3b82f6;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
             --danger-color: #ef4444;
             --input-bg: #262626;
             --border-color: #333;
-            --hover-bg: #333;
         }
 
         [data-theme="light"] {
@@ -23,10 +22,11 @@
             --card-bg: #ffffff;
             --text-color: #1f2937;
             --primary-color: #2563eb;
+            --success-color: #059669;
+            --warning-color: #d97706;
             --danger-color: #dc2626;
             --input-bg: #e5e7eb;
             --border-color: #d1d5db;
-            --hover-bg: #f9fafb;
         }
 
         body {
@@ -41,11 +41,9 @@
             transition: background-color 0.3s, color 0.3s;
         }
 
-        /* Botão de Tema */
         .theme-toggle {
             position: absolute;
-            top: 20px;
-            right: 20px;
+            top: 20px; right: 20px;
             background: var(--card-bg);
             border: 1px solid var(--border-color);
             color: var(--text-color);
@@ -53,8 +51,7 @@
             border-radius: 50%;
             cursor: pointer;
             font-size: 1.2rem;
-            transition: transform 0.2s;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: 0.2s;
         }
         .theme-toggle:hover { transform: scale(1.1); }
 
@@ -64,13 +61,11 @@
             border-radius: 20px;
             box-shadow: 0 20px 50px rgba(0,0,0,0.3);
             width: 90%;
-            max-width: 400px;
+            max-width: 420px;
             text-align: center;
             border: 1px solid var(--border-color);
-            transition: background-color 0.3s, border-color 0.3s;
         }
 
-        /* Relógio Digital */
         .clock {
             font-size: 4rem;
             font-weight: 700;
@@ -88,11 +83,11 @@
             font-weight: 600;
         }
 
-        /* Inputs */
         .input-group {
             display: flex;
             gap: 10px;
             margin-bottom: 1.5rem;
+            align-items: center;
         }
 
         input[type="time"] {
@@ -107,29 +102,46 @@
             transition: 0.3s;
         }
         
-        /* Ajuste para ícone do relógio no Chrome/Edge */
         [data-theme="dark"] input[type="time"] { color-scheme: dark; }
         [data-theme="light"] input[type="time"] { color-scheme: light; }
 
-        input[type="time"]:focus {
-            border-color: var(--primary-color);
-        }
+        input[type="time"]:focus { border-color: var(--primary-color); }
 
-        button.add-btn {
-            background-color: var(--primary-color);
+        button.main-btn {
             color: white;
             border: none;
             width: 50px;
+            height: 50px;
             border-radius: 10px;
             cursor: pointer;
             font-size: 1.5rem;
-            transition: opacity 0.2s;
+            transition: 0.2s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
+        
+        .btn-add { background-color: var(--primary-color); }
+        .btn-add:hover { background-color: #2563eb; }
+        .btn-save { background-color: var(--success-color); }
+        .btn-save:hover { opacity: 0.9; }
+        button.main-btn:disabled { background-color: var(--border-color); cursor: not-allowed; }
 
-        button.add-btn:hover { opacity: 0.9; }
-        button.add-btn:disabled { background-color: var(--border-color); cursor: not-allowed; }
+        .cancel-edit-btn {
+            background: transparent;
+            border: 1px solid var(--danger-color);
+            color: var(--danger-color);
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: none;
+            font-size: 1rem;
+            justify-content: center;
+            align-items: center;
+        }
+        .cancel-edit-btn:hover { background: var(--danger-color); color: white; }
 
-        /* Lista */
         .alarms-list {
             list-style: none;
             padding: 0;
@@ -137,8 +149,6 @@
             max-height: 280px;
             overflow-y: auto;
         }
-
-        /* Scrollbar customizada */
         .alarms-list::-webkit-scrollbar { width: 6px; }
         .alarms-list::-webkit-scrollbar-thumb { background-color: var(--border-color); border-radius: 4px; }
 
@@ -154,8 +164,9 @@
             transition: 0.2s;
         }
         
-        .alarm-item:hover {
-            border-color: var(--border-color);
+        .alarm-item.editing {
+            border-color: var(--warning-color);
+            background-color: rgba(245, 158, 11, 0.1);
         }
 
         .alarm-time {
@@ -164,26 +175,24 @@
             font-variant-numeric: tabular-nums;
         }
 
-        .delete-btn {
+        .actions { display: flex; gap: 5px; }
+
+        .icon-btn {
             background: transparent;
             border: none;
-            color: var(--danger-color);
             font-weight: bold;
             cursor: pointer;
-            padding: 5px 10px;
-            opacity: 0.7;
+            padding: 6px;
+            border-radius: 6px;
             transition: 0.2s;
+            font-size: 1.1rem;
         }
 
-        .delete-btn:hover { opacity: 1; background: rgba(239, 68, 68, 0.1); border-radius: 5px; }
+        .edit-btn { color: var(--warning-color); }
+        .edit-btn:hover { background: rgba(245, 158, 11, 0.15); }
+        .delete-btn { color: var(--danger-color); }
+        .delete-btn:hover { background: rgba(239, 68, 68, 0.15); }
 
-        .limit-msg {
-            font-size: 0.8rem;
-            opacity: 0.5;
-            margin-top: 10px;
-        }
-
-        /* Modal */
         .modal {
             display: none;
             position: fixed;
@@ -195,7 +204,6 @@
             z-index: 100;
             backdrop-filter: blur(5px);
         }
-
         .modal.active { display: flex; animation: fadeIn 0.3s; }
 
         .stop-btn {
@@ -209,8 +217,6 @@
             margin-top: 30px;
             box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
             font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 1px;
             animation: pulse 1s infinite;
         }
 
@@ -228,11 +234,12 @@
 
         <div class="input-group">
             <input type="time" id="alarmInput" required>
-            <button class="add-btn" id="addBtn" onclick="addAlarm()">+</button>
+            <button class="cancel-edit-btn" id="cancelBtn" onclick="cancelEdit()" title="Cancelar Edição">✕</button>
+            <button class="main-btn btn-add" id="actionBtn" onclick="handleAlarmAction()">+</button>
         </div>
 
         <ul class="alarms-list" id="alarmsList"></ul>
-        <div class="limit-msg" id="limitMsg">Carregando...</div>
+        <div class="limit-msg" id="limitMsg" style="opacity: 0.5; margin-top:10px; font-size:0.8rem;">Carregando...</div>
     </div>
 
     <div class="modal" id="alarmModal">
@@ -247,49 +254,61 @@
     </audio>
 
     <script>
+        // --- CONFIGURAÇÃO DO WEB WORKER (O Segredo para não travar) ---
+        // Criamos um "script invisível" que roda em segundo plano e avisa a cada segundo
+        const workerCode = `
+            setInterval(() => {
+                postMessage('tick');
+            }, 1000);
+        `;
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        const worker = new Worker(URL.createObjectURL(blob));
+
+        // --- VARIÁVEIS GLOBAIS ---
         const MAX_ALARMS = 10;
         let alarms = [];
         let audio = document.getElementById('alarmSound');
         let isRinging = false;
+        let editingIndex = -1;
         
-        // Elementos
         const displayClock = document.getElementById('displayClock');
         const alarmInput = document.getElementById('alarmInput');
         const alarmsList = document.getElementById('alarmsList');
-        const addBtn = document.getElementById('addBtn');
+        const actionBtn = document.getElementById('actionBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
         const limitMsg = document.getElementById('limitMsg');
         const modal = document.getElementById('alarmModal');
         const themeBtn = document.getElementById('themeBtn');
 
-        // --- SISTEMA DE TEMA (DARK/LIGHT) ---
+        // --- RECEBE O "TICK" DO WORKER ---
+        // Em vez de setInterval na página, ouvimos o worker
+        worker.onmessage = function() {
+            updateClock();
+        };
+
+        // --- TEMA ---
         function initTheme() {
             const savedTheme = localStorage.getItem('theme') || 'dark';
             document.documentElement.setAttribute('data-theme', savedTheme);
             updateThemeIcon(savedTheme);
         }
-
         function toggleTheme() {
             const current = document.documentElement.getAttribute('data-theme');
             const newTheme = current === 'dark' ? 'light' : 'dark';
-            
             document.documentElement.setAttribute('data-theme', newTheme);
             localStorage.setItem('theme', newTheme);
             updateThemeIcon(newTheme);
         }
-
         function updateThemeIcon(theme) {
             themeBtn.textContent = theme === 'dark' ? '☀️' : '🌙';
         }
 
-        // --- SISTEMA DE PERSISTÊNCIA (SALVAR DADOS) ---
+        // --- PERSISTÊNCIA ---
         function loadAlarms() {
             const savedAlarms = localStorage.getItem('myAlarms');
-            if (savedAlarms) {
-                alarms = JSON.parse(savedAlarms);
-            }
+            if (savedAlarms) alarms = JSON.parse(savedAlarms);
             renderAlarms();
         }
-
         function saveAlarms() {
             localStorage.setItem('myAlarms', JSON.stringify(alarms));
             renderAlarms();
@@ -298,35 +317,67 @@
         // --- LÓGICA DO RELÓGIO ---
         function updateClock() {
             const now = new Date();
-            const options = { timeZone: 'America/Sao_Paulo', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' };
-            const timeString = now.toLocaleTimeString('pt-BR', options);
-            
+            const timeString = now.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
             displayClock.textContent = timeString;
 
+            // Checa alarme quando os segundos são 00
             if (!isRinging && timeString.endsWith('00')) {
                 const currentHM = timeString.substring(0, 5);
-                if (alarms.includes(currentHM)) {
-                    triggerAlarm(currentHM);
-                }
+                if (alarms.includes(currentHM)) triggerAlarm(currentHM);
             }
         }
 
-        // --- FUNÇÕES DE ALARME ---
-        function addAlarm() {
+        // --- LÓGICA DE ADICIONAR/EDITAR ---
+        function handleAlarmAction() {
             const timeVal = alarmInput.value;
             if (!timeVal) return;
-            if (alarms.length >= MAX_ALARMS) return alert("Limite atingido!");
-            if (alarms.includes(timeVal)) return alert("Horário já existe.");
 
-            alarms.push(timeVal);
+            if (alarms.includes(timeVal) && (editingIndex === -1 || alarms[editingIndex] !== timeVal)) {
+                return alert("Este horário já existe na lista.");
+            }
+
+            if (editingIndex > -1) {
+                alarms[editingIndex] = timeVal;
+                exitEditMode();
+            } else {
+                if (alarms.length >= MAX_ALARMS) return alert("Limite de 10 alarmes atingido!");
+                alarms.push(timeVal);
+            }
+
             alarms.sort();
-            saveAlarms(); // Salva sempre que adiciona
+            saveAlarms();
             alarmInput.value = '';
         }
 
+        function startEdit(index) {
+            editingIndex = index;
+            alarmInput.value = alarms[index];
+            alarmInput.focus();
+            actionBtn.textContent = '✓';
+            actionBtn.classList.remove('btn-add');
+            actionBtn.classList.add('btn-save');
+            cancelBtn.style.display = 'flex';
+            renderAlarms();
+        }
+
+        function cancelEdit() {
+            exitEditMode();
+            alarmInput.value = '';
+        }
+
+        function exitEditMode() {
+            editingIndex = -1;
+            actionBtn.textContent = '+';
+            actionBtn.classList.remove('btn-save');
+            actionBtn.classList.add('btn-add');
+            cancelBtn.style.display = 'none';
+            renderAlarms();
+        }
+
         function removeAlarm(index) {
+            if (index === editingIndex) exitEditMode();
             alarms.splice(index, 1);
-            saveAlarms(); // Salva sempre que remove
+            saveAlarms();
         }
 
         function renderAlarms() {
@@ -334,22 +385,43 @@
             alarms.forEach((time, index) => {
                 const li = document.createElement('li');
                 li.className = 'alarm-item';
+                if (index === editingIndex) li.classList.add('editing');
+
                 li.innerHTML = `
                     <span class="alarm-time">${time}</span>
-                    <button class="delete-btn" onclick="removeAlarm(${index})">✕</button>
+                    <div class="actions">
+                        <button class="icon-btn edit-btn" onclick="startEdit(${index})" title="Editar">✏️</button>
+                        <button class="icon-btn delete-btn" onclick="removeAlarm(${index})" title="Excluir">✕</button>
+                    </div>
                 `;
                 alarmsList.appendChild(li);
             });
+            
             limitMsg.textContent = `${alarms.length}/${MAX_ALARMS} alarmes`;
-            addBtn.disabled = alarms.length >= MAX_ALARMS;
+            if (editingIndex === -1) {
+                actionBtn.disabled = alarms.length >= MAX_ALARMS;
+            } else {
+                actionBtn.disabled = false;
+            }
         }
 
+        // --- DISPARO ---
         function triggerAlarm(time) {
             isRinging = true;
             modal.classList.add('active');
             document.getElementById('alarmTimeDisplay').textContent = time;
+            
+            // Tenta tocar o áudio
             audio.currentTime = 0;
-            audio.play().catch(e => console.log("Interaja com a página para o som tocar."));
+            const playPromise = audio.play();
+            
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.log("Autoplay bloqueado. Interaja com a página.");
+                    // Tenta forçar uma notificação visual se o áudio falhar
+                    alert("⏰ ALARME: " + time);
+                });
+            }
         }
 
         function stopAlarm() {
@@ -360,10 +432,9 @@
         }
 
         // --- INICIALIZAÇÃO ---
-        initTheme(); // Carrega o tema salvo
-        loadAlarms(); // Carrega os alarmes salvos
-        setInterval(updateClock, 1000);
-        updateClock();
+        initTheme();
+        loadAlarms();
+        updateClock(); // Primeira chamada manual para aparecer na hora
     </script>
 </body>
 </html>
