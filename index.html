@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Alarme Brasília Web</title>
+    <title>Alarme Brasília Web 2.0</title>
     <style>
         :root {
             --bg-color: #050505;
@@ -15,6 +15,7 @@
             --danger-color: #ef4444;
             --input-bg: #262626;
             --border-color: #333;
+            --muted-color: #666;
         }
 
         [data-theme="light"] {
@@ -27,6 +28,7 @@
             --danger-color: #dc2626;
             --input-bg: #e5e7eb;
             --border-color: #d1d5db;
+            --muted-color: #9ca3af;
         }
 
         body {
@@ -61,7 +63,7 @@
             border-radius: 20px;
             box-shadow: 0 20px 50px rgba(0,0,0,0.3);
             width: 90%;
-            max-width: 420px;
+            max-width: 450px; /* Levemente mais largo para caber o switch */
             text-align: center;
             border: 1px solid var(--border-color);
         }
@@ -169,13 +171,70 @@
             background-color: rgba(245, 158, 11, 0.1);
         }
 
+        /* Estilo para alarme desativado */
+        .alarm-item.paused {
+            opacity: 0.5;
+            background-color: transparent;
+            border: 1px solid var(--border-color);
+        }
+        .alarm-item.paused .alarm-time {
+            text-decoration: line-through;
+            color: var(--muted-color);
+        }
+
+        .alarm-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
         .alarm-time {
             font-size: 1.4rem;
             font-weight: 600;
             font-variant-numeric: tabular-nums;
+            transition: color 0.3s;
         }
 
-        .actions { display: flex; gap: 5px; }
+        /* --- SWITCH TOGGLE CSS --- */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 22px;
+        }
+        .switch input { 
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: var(--border-color);
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: var(--success-color);
+        }
+        input:checked + .slider:before {
+            transform: translateX(18px);
+        }
+        /* ------------------------- */
+
+        .actions { display: flex; gap: 5px; margin-left: 10px; }
 
         .icon-btn {
             background: transparent;
@@ -254,8 +313,6 @@
     </audio>
 
     <script>
-        // --- CONFIGURAÇÃO DO WEB WORKER (O Segredo para não travar) ---
-        // Criamos um "script invisível" que roda em segundo plano e avisa a cada segundo
         const workerCode = `
             setInterval(() => {
                 postMessage('tick');
@@ -266,7 +323,7 @@
 
         // --- VARIÁVEIS GLOBAIS ---
         const MAX_ALARMS = 10;
-        let alarms = [];
+        let alarms = []; // Agora será um array de objetos: { time: 'HH:MM', active: true/false }
         let audio = document.getElementById('alarmSound');
         let isRinging = false;
         let editingIndex = -1;
@@ -280,8 +337,6 @@
         const modal = document.getElementById('alarmModal');
         const themeBtn = document.getElementById('themeBtn');
 
-        // --- RECEBE O "TICK" DO WORKER ---
-        // Em vez de setInterval na página, ouvimos o worker
         worker.onmessage = function() {
             updateClock();
         };
@@ -303,12 +358,22 @@
             themeBtn.textContent = theme === 'dark' ? '☀️' : '🌙';
         }
 
-        // --- PERSISTÊNCIA ---
+        // --- PERSISTÊNCIA E MIGRAÇÃO ---
         function loadAlarms() {
             const savedAlarms = localStorage.getItem('myAlarms');
-            if (savedAlarms) alarms = JSON.parse(savedAlarms);
+            if (savedAlarms) {
+                const parsed = JSON.parse(savedAlarms);
+                // MIGRACAO: Se o formato antigo (array de strings) for detectado
+                if (parsed.length > 0 && typeof parsed[0] === 'string') {
+                    alarms = parsed.map(time => ({ time: time, active: true }));
+                    saveAlarms(); // Salva logo no formato novo
+                } else {
+                    alarms = parsed;
+                }
+            }
             renderAlarms();
         }
+        
         function saveAlarms() {
             localStorage.setItem('myAlarms', JSON.stringify(alarms));
             renderAlarms();
@@ -323,7 +388,11 @@
             // Checa alarme quando os segundos são 00
             if (!isRinging && timeString.endsWith('00')) {
                 const currentHM = timeString.substring(0, 5);
-                if (alarms.includes(currentHM)) triggerAlarm(currentHM);
+                
+                // Só dispara se o horário existe E estiver ATIVO
+                const foundAlarm = alarms.find(a => a.time === currentHM && a.active === true);
+                
+                if (foundAlarm) triggerAlarm(foundAlarm.time);
             }
         }
 
@@ -332,26 +401,43 @@
             const timeVal = alarmInput.value;
             if (!timeVal) return;
 
-            if (alarms.includes(timeVal) && (editingIndex === -1 || alarms[editingIndex] !== timeVal)) {
+            // Verifica duplicidade (ignorando o que está sendo editado)
+            const exists = alarms.some((a, idx) => a.time === timeVal && idx !== editingIndex);
+            if (exists) {
                 return alert("Este horário já existe na lista.");
             }
 
             if (editingIndex > -1) {
-                alarms[editingIndex] = timeVal;
+                // Ao editar, mantemos o status ativo ou resetamos? Vamos manter o status atual se possível.
+                alarms[editingIndex].time = timeVal;
+                // Opcional: Forçar a ativar ao editar?
+                alarms[editingIndex].active = true; 
                 exitEditMode();
             } else {
                 if (alarms.length >= MAX_ALARMS) return alert("Limite de 10 alarmes atingido!");
-                alarms.push(timeVal);
+                // Cria novo objeto
+                alarms.push({ time: timeVal, active: true });
             }
 
-            alarms.sort();
+            sortAlarms();
             saveAlarms();
             alarmInput.value = '';
         }
 
+        function toggleAlarmStatus(index) {
+            // Inverte o status active
+            alarms[index].active = !alarms[index].active;
+            saveAlarms();
+            // Não precisa reordenar ao pausar
+        }
+
+        function sortAlarms() {
+            alarms.sort((a, b) => a.time.localeCompare(b.time));
+        }
+
         function startEdit(index) {
             editingIndex = index;
-            alarmInput.value = alarms[index];
+            alarmInput.value = alarms[index].time;
             alarmInput.focus();
             actionBtn.textContent = '✓';
             actionBtn.classList.remove('btn-add');
@@ -382,13 +468,21 @@
 
         function renderAlarms() {
             alarmsList.innerHTML = '';
-            alarms.forEach((time, index) => {
+            alarms.forEach((alarmObj, index) => {
                 const li = document.createElement('li');
+                // Adiciona classes para estilo (editando ou pausado)
                 li.className = 'alarm-item';
                 if (index === editingIndex) li.classList.add('editing');
+                if (!alarmObj.active) li.classList.add('paused');
 
                 li.innerHTML = `
-                    <span class="alarm-time">${time}</span>
+                    <div class="alarm-info">
+                        <label class="switch" title="Ativar/Pausar">
+                            <input type="checkbox" ${alarmObj.active ? 'checked' : ''} onchange="toggleAlarmStatus(${index})">
+                            <span class="slider"></span>
+                        </label>
+                        <span class="alarm-time">${alarmObj.time}</span>
+                    </div>
                     <div class="actions">
                         <button class="icon-btn edit-btn" onclick="startEdit(${index})" title="Editar">✏️</button>
                         <button class="icon-btn delete-btn" onclick="removeAlarm(${index})" title="Excluir">✕</button>
@@ -411,14 +505,12 @@
             modal.classList.add('active');
             document.getElementById('alarmTimeDisplay').textContent = time;
             
-            // Tenta tocar o áudio
             audio.currentTime = 0;
             const playPromise = audio.play();
             
             if (playPromise !== undefined) {
                 playPromise.catch(error => {
                     console.log("Autoplay bloqueado. Interaja com a página.");
-                    // Tenta forçar uma notificação visual se o áudio falhar
                     alert("⏰ ALARME: " + time);
                 });
             }
@@ -434,7 +526,7 @@
         // --- INICIALIZAÇÃO ---
         initTheme();
         loadAlarms();
-        updateClock(); // Primeira chamada manual para aparecer na hora
+        updateClock();
     </script>
 </body>
 </html>
