@@ -4,10 +4,33 @@ Um despertador simples e elegante para uso no trabalho, desenvolvido em HTML, CS
 
 ## Funcionalidades
 
-- Relógio em tempo real no horário de Brasília
-- Adicionar, editar e remover alarmes
-- Até 10 alarmes simultâneos
-- Tema claro e escuro
+- ⏰ Relógio em tempo real no horário de Brasília
+- ➕ Adicionar, editar e remover alarmes
+- 🔟 Até 10 alarmes simultâneos
+- 🌓 Tema claro e escuro
+- 📱 **Instalar como App Desktop** - PWA com suporte offline
+- 🔔 Notificações de alarme mesmo com o navegador fechado (em navegadores suportados)
+
+## 🚀 Como Instalar como App
+
+### Opção 1: Usando o Botão Intuitivo
+1. Clique no botão **"📥 Instalar como App"** no canto superior esquerdo
+2. Siga as instruções passo a passo fornecidas
+3. Clique em **"Instalar Agora"** ou utilize o menu do navegador
+
+### Opção 2: Menu do Navegador
+1. Clique nos **3 pontinhos (⋮)** no canto superior direito do navegador
+2. Clique em **"Salvar e compartilhar"**
+3. Selecione **"Instalar App"** ou **"Instalar Alarme Brasília"**
+4. Confirme a instalação
+5. O aplicativo aparecerá na sua tela inicial como qualquer outro app
+
+### Vantagens de Instalar como App
+- ✅ Atalho direto na tela inicial/desktop
+- ✅ Funciona sem internet (usa cache)
+- ✅ Notificações mesmo com o navegador fechado
+- ✅ Interface em modo tela cheia
+- ✅ Melhor performance e experiência
 - Persistência dos alarmes no navegador
 - Modal de alarme com som
 - Interface responsiva
