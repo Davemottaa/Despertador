@@ -95,6 +95,7 @@
             gap: 10px;
             margin-bottom: 1.5rem;
             align-items: center;
+            flex-wrap: wrap;
         }
 
         input[type="time"] {
@@ -104,15 +105,27 @@
             background: var(--input-bg);
             color: var(--text-color);
             font-size: 1.3rem;
-            flex-grow: 1;
+            flex: 1 1 120px;
+            outline: none;
+            transition: 0.3s;
+        }
+
+        .sound-select {
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            background: var(--input-bg);
+            color: var(--text-color);
+            font-size: 0.95rem;
+            min-width: 130px;
             outline: none;
             transition: 0.3s;
         }
         
-        [data-theme="dark"] input[type="time"] { color-scheme: dark; }
-        [data-theme="light"] input[type="time"] { color-scheme: light; }
+        [data-theme="dark"] input[type="time"], [data-theme="dark"] .sound-select { color-scheme: dark; }
+        [data-theme="light"] input[type="time"], [data-theme="light"] .sound-select { color-scheme: light; }
 
-        input[type="time"]:focus { border-color: var(--primary-color); }
+        input[type="time"]:focus, .sound-select:focus { border-color: var(--primary-color); }
 
         button.main-btn {
             color: white;
@@ -193,11 +206,25 @@
             gap: 15px;
         }
 
+        .alarm-meta {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 4px;
+        }
+
         .alarm-time {
             font-size: 1.4rem;
             font-weight: 600;
             font-variant-numeric: tabular-nums;
             transition: color 0.3s;
+        }
+
+        .alarm-sound {
+            font-size: 0.72rem;
+            color: var(--muted-color);
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
         }
 
         /* --- SWITCH TOGGLE CSS --- */
@@ -484,6 +511,13 @@
 
         <div class="input-group">
             <input type="time" id="alarmInput" required>
+            <select id="soundSelect" class="sound-select" aria-label="Selecionar som do alarme">
+                <option value="classic">Clássico</option>
+                <option value="soft">Suave</option>
+                <option value="beep">Beep</option>
+                <option value="bell">Sino</option>
+                <option value="digital">Digital</option>
+            </select>
             <button class="cancel-edit-btn" id="cancelBtn" onclick="cancelEdit()" title="Cancelar Edição">✕</button>
             <button class="main-btn btn-add" id="actionBtn" onclick="handleAlarmAction()">+</button>
         </div>
@@ -634,14 +668,24 @@
         const worker = new Worker(URL.createObjectURL(blob));
 
         // --- VARIÁVEIS GLOBAIS ---
-        const MAX_ALARMS = 10;
-        let alarms = []; // Agora será um array de objetos: { time: 'HH:MM', active: true/false }
+        const MAX_ALARMS = 15;
+        const SOUND_OPTIONS = {
+            classic: { label: 'Clássico', type: 'sine', pattern: [440, 523.25, 659.25], interval: 0.28, duration: 0.24, volume: 0.12 },
+            soft: { label: 'Suave', type: 'triangle', pattern: [392, 440, 523.25], interval: 0.42, duration: 0.3, volume: 0.08 },
+            beep: { label: 'Beep', type: 'square', pattern: [660, 660, 830], interval: 0.2, duration: 0.18, volume: 0.1 },
+            bell: { label: 'Sino', type: 'triangle', pattern: [523.25, 659.25, 783.99, 1046.5], interval: 0.35, duration: 0.28, volume: 0.09 },
+            digital: { label: 'Digital', type: 'sawtooth', pattern: [349.23, 392, 466.16, 587.33], interval: 0.17, duration: 0.15, volume: 0.09 }
+        };
+        let alarms = [];
         let audio = document.getElementById('alarmSound');
         let isRinging = false;
         let editingIndex = -1;
+        let alarmAudioNodes = [];
+        let audioContext = null;
         
         const displayClock = document.getElementById('displayClock');
         const alarmInput = document.getElementById('alarmInput');
+        const soundSelect = document.getElementById('soundSelect');
         const alarmsList = document.getElementById('alarmsList');
         const actionBtn = document.getElementById('actionBtn');
         const cancelBtn = document.getElementById('cancelBtn');
@@ -670,17 +714,77 @@
             themeBtn.textContent = theme === 'dark' ? '☀️' : '🌙';
         }
 
+        function getAudioContext() {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextClass) return null;
+            if (!audioContext) {
+                audioContext = new AudioContextClass();
+            }
+            return audioContext;
+        }
+
+        function stopAlarmSound() {
+            alarmAudioNodes.forEach(node => {
+                try { node.stop(); } catch (error) {}
+            });
+            alarmAudioNodes = [];
+            if (audio) {
+                audio.pause();
+                audio.currentTime = 0;
+            }
+        }
+
+        function playAlarmSound(soundKey = 'classic') {
+            const context = getAudioContext();
+            if (!context) {
+                if (audio) {
+                    audio.currentTime = 0;
+                    audio.play().catch(() => {});
+                }
+                return;
+            }
+
+            if (context.state === 'suspended') {
+                context.resume();
+            }
+
+            stopAlarmSound();
+            const soundConfig = SOUND_OPTIONS[soundKey] || SOUND_OPTIONS.classic;
+            const startTime = context.currentTime + 0.05;
+
+            soundConfig.pattern.forEach((frequency, index) => {
+                const oscillator = context.createOscillator();
+                const gainNode = context.createGain();
+
+                oscillator.type = soundConfig.type;
+                oscillator.frequency.setValueAtTime(frequency, startTime + (index * soundConfig.interval));
+
+                gainNode.gain.setValueAtTime(0.0001, startTime + (index * soundConfig.interval));
+                gainNode.gain.exponentialRampToValueAtTime(soundConfig.volume, startTime + (index * soundConfig.interval) + 0.02);
+                gainNode.gain.exponentialRampToValueAtTime(0.0001, startTime + (index * soundConfig.interval) + soundConfig.duration);
+
+                oscillator.connect(gainNode);
+                gainNode.connect(context.destination);
+                oscillator.start(startTime + (index * soundConfig.interval));
+                oscillator.stop(startTime + (index * soundConfig.interval) + soundConfig.duration + 0.05);
+                alarmAudioNodes.push(oscillator);
+            });
+        }
+
         // --- PERSISTÊNCIA E MIGRAÇÃO ---
         function loadAlarms() {
             const savedAlarms = localStorage.getItem('myAlarms');
             if (savedAlarms) {
                 const parsed = JSON.parse(savedAlarms);
-                // MIGRACAO: Se o formato antigo (array de strings) for detectado
                 if (parsed.length > 0 && typeof parsed[0] === 'string') {
-                    alarms = parsed.map(time => ({ time: time, active: true }));
-                    saveAlarms(); // Salva logo no formato novo
+                    alarms = parsed.map(time => ({ time, active: true, sound: 'classic' }));
+                    saveAlarms();
                 } else {
-                    alarms = parsed;
+                    alarms = parsed.map(alarm => ({
+                        time: alarm.time,
+                        active: alarm.active !== false,
+                        sound: SOUND_OPTIONS[alarm.sound] ? alarm.sound : 'classic'
+                    }));
                 }
             }
             renderAlarms();
@@ -704,7 +808,7 @@
                 // Só dispara se o horário existe E estiver ATIVO
                 const foundAlarm = alarms.find(a => a.time === currentHM && a.active === true);
                 
-                if (foundAlarm) triggerAlarm(foundAlarm.time);
+                if (foundAlarm) triggerAlarm(foundAlarm.time, foundAlarm.sound || 'classic');
             }
         }
 
@@ -712,6 +816,7 @@
         function handleAlarmAction() {
             const timeVal = alarmInput.value;
             if (!timeVal) return;
+            const selectedSound = soundSelect.value || 'classic';
 
             // Verifica duplicidade (ignorando o que está sendo editado)
             const exists = alarms.some((a, idx) => a.time === timeVal && idx !== editingIndex);
@@ -720,20 +825,19 @@
             }
 
             if (editingIndex > -1) {
-                // Ao editar, mantemos o status ativo ou resetamos? Vamos manter o status atual se possível.
                 alarms[editingIndex].time = timeVal;
-                // Opcional: Forçar a ativar ao editar?
-                alarms[editingIndex].active = true; 
+                alarms[editingIndex].sound = selectedSound;
+                alarms[editingIndex].active = true;
                 exitEditMode();
             } else {
-                if (alarms.length >= MAX_ALARMS) return alert("Limite de 10 alarmes atingido!");
-                // Cria novo objeto
-                alarms.push({ time: timeVal, active: true });
+                if (alarms.length >= MAX_ALARMS) return alert("Limite de 15 alarmes atingido!");
+                alarms.push({ time: timeVal, active: true, sound: selectedSound });
             }
 
             sortAlarms();
             saveAlarms();
             alarmInput.value = '';
+            soundSelect.value = 'classic';
         }
 
         function toggleAlarmStatus(index) {
@@ -750,6 +854,7 @@
         function startEdit(index) {
             editingIndex = index;
             alarmInput.value = alarms[index].time;
+            soundSelect.value = alarms[index].sound || 'classic';
             alarmInput.focus();
             actionBtn.textContent = '✓';
             actionBtn.classList.remove('btn-add');
@@ -761,6 +866,7 @@
         function cancelEdit() {
             exitEditMode();
             alarmInput.value = '';
+            soundSelect.value = 'classic';
         }
 
         function exitEditMode() {
@@ -782,7 +888,7 @@
             alarmsList.innerHTML = '';
             alarms.forEach((alarmObj, index) => {
                 const li = document.createElement('li');
-                // Adiciona classes para estilo (editando ou pausado)
+                const soundLabel = SOUND_OPTIONS[alarmObj.sound] ? SOUND_OPTIONS[alarmObj.sound].label : 'Clássico';
                 li.className = 'alarm-item';
                 if (index === editingIndex) li.classList.add('editing');
                 if (!alarmObj.active) li.classList.add('paused');
@@ -793,7 +899,10 @@
                             <input type="checkbox" ${alarmObj.active ? 'checked' : ''} onchange="toggleAlarmStatus(${index})">
                             <span class="slider"></span>
                         </label>
-                        <span class="alarm-time">${alarmObj.time}</span>
+                        <div class="alarm-meta">
+                            <span class="alarm-time">${alarmObj.time}</span>
+                            <span class="alarm-sound">🔊 ${soundLabel}</span>
+                        </div>
                     </div>
                     <div class="actions">
                         <button class="icon-btn edit-btn" onclick="startEdit(${index})" title="Editar">✏️</button>
@@ -812,27 +921,30 @@
         }
 
         // --- DISPARO ---
-        function triggerAlarm(time) {
+        function triggerAlarm(time, soundKey = 'classic') {
             isRinging = true;
             modal.classList.add('active');
             document.getElementById('alarmTimeDisplay').textContent = time;
-            
-            audio.currentTime = 0;
-            const playPromise = audio.play();
-            
-            if (playPromise !== undefined) {
-                playPromise.catch(error => {
-                    console.log("Autoplay bloqueado. Interaja com a página.");
-                    alert("⏰ ALARME: " + time);
-                });
+
+            const context = getAudioContext();
+            if (context) {
+                playAlarmSound(soundKey);
+                return;
+            }
+
+            if (audio) {
+                audio.currentTime = 0;
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(() => console.log('Autoplay bloqueado. Interaja com a página.'));
+                }
             }
         }
 
         function stopAlarm() {
             isRinging = false;
             modal.classList.remove('active');
-            audio.pause();
-            audio.currentTime = 0;
+            stopAlarmSound();
         }
 
         // --- INICIALIZAÇÃO ---
